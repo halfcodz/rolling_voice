@@ -66,7 +66,7 @@ const GUIDE_TEXT := """Rolling Voice — 내 노래 추가하는 법
      이때 MIDI의 0초와 반주의 0초가 같아야 박자가 맞습니다.
 
 2) 텍스트 악보 (.txt)
-   - 메모장으로 직접 쓸 수 있습니다. '예시_도레미.txt'를 열어 보세요.
+   - 메모장으로 직접 쓸 수 있습니다. '예시_도레미(가사).txt'를 열어 보세요.
    - 음표는 '음이름/박자/가사' 형식입니다. 박자와 가사는 생략할 수 있어요.
        C4  D4/2  E4/0.5/라  R(쉼표)  솔4  파#4  Bb3
    - 머리말 설정
@@ -77,14 +77,16 @@ const GUIDE_TEXT := """Rolling Voice — 내 노래 추가하는 법
 ※ 저작권이 있는 음원은 개인적으로만 사용하세요.
 """
 
-const EXAMPLE_TEXT := """// 발성 연습용 도레미 (메모장으로 고쳐 보세요)
+const EXAMPLE_NAME := "예시_도레미(가사).txt"
+const EXAMPLE_TEXT := """// 발성 연습용 도레미 — 메모장으로 고쳐 보세요
+// 음표 = 음이름/박자/가사.  악보 한 줄이 노래방 가사 한 줄이 되고, '_'는 띄어쓰기예요.
 title=도레미 연습
 bpm=90
-도4 레4 미4 파4 솔4 라4 시4 도5/2
-도5 시4 라4 솔4 파4 미4 레4 도4/2
+도4/1/도 레4/1/레 미4/1/미 파4/1/파 솔4/1/솔 라4/1/라 시4/1/시 도5/2/도
+도5/1/도 시4/1/시 라4/1/라 솔4/1/솔 파4/1/파 미4/1/미 레4/1/레 도4/2/도
 R/2
-도4/2 미4/2 솔4/2 도5/2
-솔4/2 미4/2 도4/4
+도4/2/아_ 미4/2/아_ 솔4/2/아_ 도5/2/아
+솔4/2/아_ 미4/2/아_ 도4/4/아
 """
 
 
@@ -96,12 +98,14 @@ static func ensure_songs_dir() -> void:
 		var f := FileAccess.open(guide, FileAccess.WRITE)
 		if f:
 			f.store_string(GUIDE_TEXT)
-	var example := SONGS_DIR.path_join("예시_도레미.txt")
-	if not FileAccess.file_exists(example) and not FileAccess.file_exists(SONGS_DIR.path_join(".example_written")):
+	# 예시 악보는 한 번만 만든다 (지워도 다시 생기지 않게 표시 파일을 남김)
+	var example := SONGS_DIR.path_join(EXAMPLE_NAME)
+	var mark_path := SONGS_DIR.path_join(".example2_written")
+	if not FileAccess.file_exists(example) and not FileAccess.file_exists(mark_path):
 		var f2 := FileAccess.open(example, FileAccess.WRITE)
 		if f2:
 			f2.store_string(EXAMPLE_TEXT)
-		var mark := FileAccess.open(SONGS_DIR.path_join(".example_written"), FileAccess.WRITE)
+		var mark := FileAccess.open(mark_path, FileAccess.WRITE)
 		if mark:
 			mark.store_string("1")
 

@@ -10,6 +10,7 @@ const COIN_TEX := preload("res://assets/sprites/coin.png")
 const ICON_LIMIT := 10
 
 var lane: PitchLane
+var lyrics: KaraokeLyrics
 
 var _title: Label
 var _source: Label
@@ -25,6 +26,7 @@ var _voice_sub: Label
 var _voice_card: PanelContainer
 var _progress: ProgressBar
 var _time_label: Label
+var _prog_head: HBoxContainer
 var _countdown: Label
 var _hint: Label
 var _overlay: Control
@@ -150,7 +152,11 @@ func _build() -> void:
 	var prog_col := VBoxContainer.new()
 	prog_col.add_theme_constant_override("separation", 6)
 	prog_card.add_child(prog_col)
+	lyrics = KaraokeLyrics.new()
+	lyrics.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	prog_col.add_child(lyrics)
 	var prog_head := HBoxContainer.new()
+	_prog_head = prog_head
 	prog_col.add_child(prog_head)
 	var pl := Label.new()
 	pl.text = "진행"
@@ -240,6 +246,10 @@ func setup(song: SongData, max_misses: int) -> void:
 	_lives_bar.max_value = max_misses
 	set_lives(0)
 	lane.set_song(song)
+	lyrics.set_song(song)
+	# 가사가 있으면 '진행' 글자 줄을 숨기고 가사에 자리를 내준다
+	_prog_head.visible = not song.has_lyrics()
+	_progress.custom_minimum_size.y = 8 if song.has_lyrics() else 14
 	if _overlay:
 		_overlay.queue_free()
 		_overlay = null
@@ -264,6 +274,7 @@ func set_lives(misses: int) -> void:
 
 
 func set_progress(t: float) -> void:
+	lyrics.update_time(t)
 	_progress.value = clampf(t / _duration, 0.0, 1.0) * 100.0
 	var cur := int(clampf(t, 0.0, _duration))
 	var tot := int(_duration)
