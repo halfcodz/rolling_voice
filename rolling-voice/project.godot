@@ -22,8 +22,8 @@ driver/enable_input=true
 
 [autoload]
 
-GameSettings="*res://scripts/global/game_settings.gd"
 PitchDetector="*res://scripts/audio/pitch_detector.gd"
+GameSettings="*res://scripts/global/game_settings.gd"
 
 [display]
 
@@ -31,6 +31,10 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[gui]
+
+theme/custom_font="res://assets/fonts/Jua-Regular.ttf"
 
 [physics]
 
