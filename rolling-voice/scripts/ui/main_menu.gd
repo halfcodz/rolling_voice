@@ -355,12 +355,20 @@ func _build_song_card() -> PanelContainer:
 	var head: HBoxContainer = c[2]
 	c[0].size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	var help := Button.new()
-	help.text = "내 노래 추가"
-	help.icon = UiTheme.icon("folder_open")
-	help.add_theme_font_size_override("font_size", 18)
-	help.pressed.connect(func() -> void: _help.visible = true)
-	head.add_child(help)
+	var tools := MenuButton.new()
+	tools.text = "노래 추가 · 가사"
+	tools.icon = UiTheme.icon("folder_open")
+	tools.flat = false
+	tools.add_theme_font_size_override("font_size", 18)
+	var pop := tools.get_popup()
+	pop.add_theme_font_size_override("font_size", 20)
+	pop.add_icon_item(UiTheme.icon("graphic_eq"), "음원으로 악보 만들기…", MENU_EXTRACT)
+	pop.add_icon_item(UiTheme.icon("music_note"), "선택한 노래에 가사 붙이기…", MENU_LYRICS)
+	pop.add_separator()
+	pop.add_icon_item(UiTheme.icon("folder_open"), "노래 폴더 열기", MENU_FOLDER)
+	pop.add_icon_item(UiTheme.icon("library_music"), "내 노래 추가하는 법", MENU_HELP)
+	pop.id_pressed.connect(_on_tools_menu)
+	head.add_child(tools)
 	var refresh := Button.new()
 	refresh.theme_type_variation = "IconButton"
 	refresh.icon = UiTheme.icon("refresh")
@@ -516,6 +524,34 @@ func _build_help() -> void:
 
 
 # ── 동작 ──────────────────────────────────────────────────
+const MENU_EXTRACT := 0
+const MENU_LYRICS := 1
+const MENU_FOLDER := 2
+const MENU_HELP := 3
+
+
+func _on_tools_menu(id: int) -> void:
+	match id:
+		MENU_EXTRACT:
+			_open_extractor()
+		MENU_LYRICS:
+			var s := _selected_song()
+			if s == null or not s.is_playable():
+				return
+			GameSettings.selected_song = s
+			GameSettings.last_song_id = s.id
+			GameSettings.save_settings()
+			get_tree().change_scene_to_file("res://scenes/lyric_sync.tscn")
+		MENU_FOLDER:
+			SongLibrary.ensure_songs_dir()
+			OS.shell_open(ProjectSettings.globalize_path(SongLibrary.SONGS_DIR))
+		MENU_HELP:
+			_help.visible = true
+
+
+func _open_extractor() -> void:
+	pass
+
 func _refresh_songs() -> void:
 	_songs = SongLibrary.load_all()
 	_list.clear()
