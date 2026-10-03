@@ -111,3 +111,8 @@ func load_settings() -> void:
 	sfx_volume = cfg.get_value("audio", "sfx_volume", sfx_volume)
 	mic_threshold = cfg.get_value("audio", "mic_threshold", mic_threshold)
 	input_device = cfg.get_value("audio", "input_device", input_device)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_settings()

@@ -138,6 +138,15 @@ static func build() -> Theme:
 		t.set_color(c, "PrimaryButton", INK)
 	t.set_constant("icon_max_width", "PrimaryButton", 36)
 
+	t.set_type_variation("SegmentButton", "Button")
+	t.set_stylebox("normal", "SegmentButton", box(PANEL_DEEP, 12, 10.0))
+	t.set_stylebox("hover", "SegmentButton", box(Color(1, 1, 1, 0.1), 12, 10.0))
+	t.set_stylebox("pressed", "SegmentButton", box(GOLD, 12, 10.0, 0, Color.TRANSPARENT, 6, Vector2(0, 3)))
+	t.set_stylebox("hover_pressed", "SegmentButton", box(GOLD_HOVER, 12, 10.0, 0, Color.TRANSPARENT, 6, Vector2(0, 3)))
+	t.set_color("font_pressed_color", "SegmentButton", INK)
+	t.set_color("font_hover_pressed_color", "SegmentButton", INK)
+	t.set_color("font_color", "SegmentButton", MUTED)
+
 	t.set_type_variation("IconButton", "Button")
 	t.set_stylebox("normal", "IconButton", box(PANEL_SOFT, 999, 8.0))
 	t.set_stylebox("hover", "IconButton", box(Color(1, 1, 1, 0.14), 999, 8.0))
