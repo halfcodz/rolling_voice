@@ -9,6 +9,14 @@ var _info: Label
 var _start: Button
 var _misses_label: Label
 var _key_label: Label
+var _extractor: MelodyExtractor
+var _ex_overlay: Control
+var _ex_title: Label
+var _ex_file: Label
+var _ex_bar: ProgressBar
+var _ex_phase: Label
+var _ex_cancel: Button
+var _ex_open: Button
 var _diff_desc: Label
 var _diff_buttons: Array[Button] = []
 var _octave: CheckButton
@@ -484,7 +492,8 @@ func _build_help() -> void:
 	var steps := [
 		["MIDI 파일 (.mid)", "멜로디가 들어 있는 MIDI를 넣으면 노래 트랙을 자동으로 찾아요.\n같은 이름의 mp3·ogg·wav가 있으면 반주로 함께 재생해요. (예: 내노래.mid + 내노래.mp3)"],
 		["텍스트 악보 (.txt)", "메모장으로 '음이름/박자/가사'를 적으면 돼요.  예) C4  D4/2  솔4/0.5/라  R(쉼표)\n머리말: title=제목  bpm=빠르기  transpose=조옮김  audio=반주파일  offset=첫 음까지 초"],
-		["넣은 뒤에는", "목록 오른쪽 위 새로고침 버튼을 누르세요. 폴더 안 '예시_도레미(가사).txt'를 참고하면 쉬워요."],
+		["음원만 있다면", "'노래 추가 · 가사' → '음원으로 악보 만들기'로 mp3·ogg·wav에서 멜로디 초안을 자동으로 뽑을 수 있어요."],
+		["가사", "악보에 '음이름/박자/가사'로 쓰거나(한 줄 = 가사 한 줄, '_' = 띄어쓰기), 같은 이름의 .lrc 파일을 두세요.\n'선택한 노래에 가사 붙이기'로 노래를 들으며 스페이스로 타이밍을 찍어 .lrc를 만들 수도 있어요."],
 	]
 	for s in steps:
 		var box := PanelContainer.new()
@@ -549,8 +558,135 @@ func _on_tools_menu(id: int) -> void:
 			_help.visible = true
 
 
+# ── 음원 → 악보 추출 ─────────────────────────────────────
 func _open_extractor() -> void:
-	pass
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.mp3, *.ogg, *.wav ; 음원 파일"])
+	fd.title = "멜로디를 뽑을 음원 고르기"
+	fd.use_native_dialog = true
+	fd.file_selected.connect(_start_extract)
+	fd.canceled.connect(fd.queue_free)
+	_ui.add_child(fd)
+	fd.popup_centered_ratio(0.7)
+
+
+func _start_extract(path: String) -> void:
+	_build_extract_overlay()
+	_extractor = MelodyExtractor.new()
+	add_child(_extractor)
+	_extractor.progress.connect(func(phase: String, ratio: float) -> void:
+		_ex_phase.text = phase
+		_ex_bar.value = ratio * 100.0)
+	_extractor.failed.connect(func(msg: String) -> void:
+		_ex_title.text = "멜로디를 뽑지 못했어요"
+		_ex_title.add_theme_color_override("font_color", UiTheme.BAD)
+		_ex_phase.text = msg
+		_ex_cancel.text = "닫기"
+		_extractor.queue_free())
+	_extractor.finished.connect(_on_extract_done)
+	_ex_title.text = "멜로디 뽑는 중"
+	var fname := path.get_file()
+	_ex_file.text = fname if fname.length() <= 40 else fname.left(37) + "..."
+	_extractor.extract(path)
+
+
+func _on_extract_done(chart_path: String, count: int) -> void:
+	_extractor.queue_free()
+	_ex_title.text = "악보 초안을 만들었어요!"
+	_ex_title.add_theme_color_override("font_color", UiTheme.GOOD)
+	_ex_phase.text = "음표 %d개 · %s" % [count, chart_path.get_file()]
+	_ex_bar.value = 100.0
+	_ex_cancel.text = "닫기"
+	_ex_open.visible = true
+	_ex_open.pressed.connect(func() -> void: OS.shell_open(ProjectSettings.globalize_path(chart_path)))
+	_refresh_songs()
+	for i in _songs.size():
+		if _songs[i].id == "user:" + chart_path.get_file():
+			_list.select(i)
+			_list.ensure_current_is_visible()
+			_on_song_selected(i)
+
+
+func _build_extract_overlay() -> void:
+	if _ex_overlay:
+		_ex_overlay.queue_free()
+	_ex_overlay = Control.new()
+	_ex_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ui.add_child(_ex_overlay)
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.08, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ex_overlay.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ex_overlay.add_child(center)
+	var card := PanelContainer.new()
+	card.custom_minimum_size = Vector2(620, 0)
+	center.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	card.add_child(v)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 12)
+	v.add_child(head)
+	var ic := TextureRect.new()
+	ic.texture = UiTheme.icon("graphic_eq")
+	ic.custom_minimum_size = Vector2(36, 36)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.modulate = UiTheme.GOLD
+	head.add_child(ic)
+	_ex_title = Label.new()
+	_ex_title.theme_type_variation = "HeadingLabel"
+	_ex_title.add_theme_font_size_override("font_size", 32)
+	head.add_child(_ex_title)
+	_ex_file = Label.new()
+	_ex_file.theme_type_variation = "ChipLabel"
+	_ex_file.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	v.add_child(_ex_file)
+	_ex_bar = ProgressBar.new()
+	_ex_bar.custom_minimum_size = Vector2(0, 16)
+	_ex_bar.show_percentage = false
+	v.add_child(_ex_bar)
+	_ex_phase = Label.new()
+	_ex_phase.theme_type_variation = "MutedLabel"
+	_ex_phase.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(_ex_phase)
+	var tip := PanelContainer.new()
+	tip.theme_type_variation = "SoftPanel"
+	v.add_child(tip)
+	var tl := Label.new()
+	tl.theme_type_variation = "MutedLabel"
+	tl.add_theme_font_size_override("font_size", 17)
+	tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tl.text = "보컬이나 멜로디가 또렷한 음원일수록 정확해요. 반주만 있는 음원은 멜로디를 찾기 어려워요.\n" \
+		+ "만들어진 악보는 초안이라, 틀린 음은 메모장으로 고칠 수 있어요. (음원은 노래 폴더로 복사돼요)"
+	tip.add_child(tl)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 12)
+	v.add_child(buttons)
+	_ex_cancel = Button.new()
+	_ex_cancel.text = "취소"
+	_ex_cancel.custom_minimum_size = Vector2(0, 56)
+	_ex_cancel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_ex_cancel.pressed.connect(func() -> void:
+		if is_instance_valid(_extractor):
+			_extractor.cancel()
+			_extractor.queue_free()
+		_ex_overlay.queue_free()
+		_ex_overlay = null)
+	buttons.add_child(_ex_cancel)
+	_ex_open = Button.new()
+	_ex_open.theme_type_variation = "PrimaryButton"
+	_ex_open.add_theme_font_size_override("font_size", 24)
+	_ex_open.text = "악보 열어 보기"
+	_ex_open.icon = UiTheme.icon("folder_open")
+	_ex_open.custom_minimum_size = Vector2(0, 56)
+	_ex_open.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_ex_open.visible = false
+	buttons.add_child(_ex_open)
 
 func _refresh_songs() -> void:
 	_songs = SongLibrary.load_all()

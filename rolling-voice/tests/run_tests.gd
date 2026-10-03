@@ -12,6 +12,7 @@ func _init() -> void:
 	_test_midi_parser()
 	_test_builtin_songs()
 	_test_lyrics_and_key()
+	_test_segmenter()
 	print("\n결과: ", "모두 통과" if _fails == 0 else "%d개 실패" % _fails)
 	quit(1 if _fails > 0 else 0)
 
@@ -209,3 +210,30 @@ func _test_lyrics_and_key() -> void:
 	var t := s.transposed(-3)
 	check(t.notes[0].midi == 57 and s.notes[0].midi == 60, "조옮김 복사본 (원본 유지)")
 	check(t.lyric_lines.size() == s.lyric_lines.size(), "조옮김해도 가사 유지")
+
+
+func _test_segmenter() -> void:
+	print("[멜로디 추출 · 음표 분할]")
+	# 20ms 프레임: C4 0.4초 / 잡음 1프레임 / C4 이어짐 / 무성 2프레임(자음) / E4 0.3초 / 옥타브 튐 / E4 / 긴 쉼 / G4
+	var p := PackedFloat32Array()
+	for i in 20: p.append(60.1)
+	p.append(66.0)
+	for i in 10: p.append(59.9)
+	p.append(-1.0); p.append(-1.0)
+	for i in 15: p.append(64.0)
+	for i in 4: p.append(76.0)
+	for i in 6: p.append(64.2)
+	for i in 60: p.append(-1.0)
+	for i in 3: p.append(67.0)   # 60ms → 너무 짧아 버림
+	for i in 20: p.append(67.0)
+	var notes := MelodyExtractor.segment(p, 0.02)
+	var desc := ", ".join(notes.map(func(n): return "%s %.2f-%.2f" % [NoteUtils.midi_name(n.midi), n.start, n.end]))
+	check(notes.size() == 3, "음표 3개로 정리: " + desc)
+	if notes.size() == 3:
+		check(notes[0].midi == 60 and is_equal_approx(notes[0].end, 0.64), "흔들림 제거·짧은 끊김(자음) 메우기")
+		check(notes[1].midi == 64 and notes[1].end - notes[1].start > 0.45, "옥타브 튐 보정")
+		check(notes[2].midi == 67, "쉼 뒤 새 음")
+	var chart := MelodyExtractor.to_chart(notes, "제목", "a.ogg")
+	var song := SongLibrary.parse_text(chart, "x", "", "")
+	check(song.notes.size() == 3 and absf(song.notes[2].start - notes[2].start) < 0.02, "악보로 저장 후 다시 읽어도 시각 유지")
+	check(chart.split("\n").size() >= 9, "1초 넘게 쉬면 줄 바꿈")
