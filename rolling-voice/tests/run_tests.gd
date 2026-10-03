@@ -11,6 +11,7 @@ func _init() -> void:
 	_test_text_parser()
 	_test_midi_parser()
 	_test_builtin_songs()
+	_test_lyrics_and_key()
 	print("\n결과: ", "모두 통과" if _fails == 0 else "%d개 실패" % _fails)
 	quit(1 if _fails > 0 else 0)
 
@@ -177,3 +178,34 @@ func _test_builtin_songs() -> void:
 	for s in SongLibrary.load_all():
 		if s.id.begins_with("builtin"):
 			check(s.is_playable(), "%s — %s" % [s.title, s.summary()])
+
+
+func _test_lyrics_and_key() -> void:
+	print("[가사 · 키]")
+	# 악보 한 줄 = 가사 한 줄, "_" = 띄어쓰기 (내용은 테스트용 임의 문자열)
+	var s := SongLibrary.parse_text("bpm=60\nC4/1/가 D4/1/나_ E4/1/다\nF4/2/라", "l", "", "")
+	check(s.lyric_lines.size() == 2, "악보 가사 2줄 (%d)" % s.lyric_lines.size())
+	if s.lyric_lines.size() == 2:
+		var first: Dictionary = s.lyric_lines[0]
+		check(first.segs.size() == 3 and first.segs[1].text == "나 ", "음표별 조각·띄어쓰기")
+		check(is_equal_approx(first.start, 4.0) and is_equal_approx(first.end, 7.0), "줄 시작·끝 (%.1f~%.1f)" % [first.start, first.end])
+		check(s.lyric_line_at(3.0) == -1 and s.lyric_line_at(3.5) == 0 and s.lyric_line_at(7.5) == 1, "시각별 현재 줄")
+
+	var lrc := "[ti:test]\n[offset:+500]\n[00:10.00]첫째 줄\n[00:12.50]<00:12.50>둘<00:13.00>째 <00:13.40>줄\n[00:15.00]\n[00:20.00][00:30.00]반복 줄"
+	var lines := SongLibrary.parse_lrc(lrc, 1.0)
+	check(lines.size() == 4, "LRC 줄 수 (빈 줄 제외, 반복 시각 펼침) %d" % lines.size())
+	if lines.size() == 4:
+		check(is_equal_approx(lines[0].start, 10.5), "offset(+500ms → 0.5초 빠르게)·shift 적용 (%.2f)" % lines[0].start)
+		check(lines[1].segs.size() == 3 and lines[1].segs[1].text == "째 ", "글자 단위 타이밍")
+		check(is_equal_approx(lines[1].segs[0].end, 13.0 - 0.5 + 1.0), "조각 끝 = 다음 조각 시작")
+		check(lines[3].segs[0].text == "반복 줄" and is_equal_approx(lines[3].start, 30.5), "한 줄에 여러 시각")
+
+	var path := "user://_lrc_test.lrc"
+	SongLibrary.write_lrc(path, "제목", [{"time": 3.25, "text": "하나"}, {"time": 65.5, "text": "둘"}])
+	var back := SongLibrary.parse_lrc(FileAccess.get_file_as_string(path))
+	check(back.size() == 2 and is_equal_approx(back[1].start, 65.5) and back[0].segs[0].text == "하나", "LRC 저장 후 다시 읽기")
+	DirAccess.remove_absolute(path)
+
+	var t := s.transposed(-3)
+	check(t.notes[0].midi == 57 and s.notes[0].midi == 60, "조옮김 복사본 (원본 유지)")
+	check(t.lyric_lines.size() == s.lyric_lines.size(), "조옮김해도 가사 유지")

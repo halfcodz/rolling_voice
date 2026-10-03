@@ -16,6 +16,7 @@ const MIN_JUDGE_LEN := 0.25
 const END_PADDING := 1.2
 
 var song: SongData
+var key_shift := 0   ## 메뉴에서 정한 키(반음). song은 이미 조옮김된 상태
 var state := State.COUNTDOWN
 var misses := 0
 
@@ -42,9 +43,11 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("autoplay="):
 			_autoplay = arg.get_slice("=", 1)
-	song = GameSettings.selected_song
-	if song == null:
-		song = SongLibrary.load_all()[0]
+	var original := GameSettings.selected_song
+	if original == null:
+		original = SongLibrary.load_all()[0]
+	key_shift = GameSettings.get_key(original.id)
+	song = original.transposed(key_shift)
 
 	_world = RollingWorld.new()
 	_world.camera_mode = RollingWorld.CameraMode.GAME
@@ -104,6 +107,7 @@ func _start() -> void:
 		if _backing.stream == null:
 			_hud.set_hint("반주 파일을 열 수 없어서 가이드 멜로디만 재생해요")
 	_backing.volume_db = 0.0
+	GameSettings.set_backing_pitch(key_shift)
 	_start_usec = Time.get_ticks_usec()
 	_sim_time = 0.0
 	_synth.start()
@@ -285,6 +289,10 @@ func _on_retry() -> void:
 	_backing.stop()
 	_synth.stop()
 	_start()
+
+
+func _exit_tree() -> void:
+	GameSettings.set_backing_pitch(0)
 
 
 func _on_menu() -> void:

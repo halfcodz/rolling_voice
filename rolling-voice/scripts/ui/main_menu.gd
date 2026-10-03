@@ -8,6 +8,7 @@ var _list: ItemList
 var _info: Label
 var _start: Button
 var _misses_label: Label
+var _key_label: Label
 var _diff_desc: Label
 var _diff_buttons: Array[Button] = []
 var _octave: CheckButton
@@ -387,33 +388,25 @@ func _build_rule_card() -> PanelContainer:
 	var c := _card("규칙", "tune")
 	var v: VBoxContainer = c[1]
 
-	# 최대 실수 횟수 (− 값 +)
-	var stepper := HBoxContainer.new()
-	stepper.add_theme_constant_override("separation", 10)
-	var minus := Button.new()
-	minus.text = "-"
-	minus.add_theme_font_size_override("font_size", 30)
-	minus.custom_minimum_size = Vector2(48, 40)
-	stepper.add_child(minus)
-	_misses_label = Label.new()
-	_misses_label.theme_type_variation = "BigLabel"
-	_misses_label.add_theme_font_size_override("font_size", 34)
-	_misses_label.custom_minimum_size = Vector2(70, 0)
-	_misses_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stepper.add_child(_misses_label)
-	var plus := Button.new()
-	plus.text = "+"
-	plus.add_theme_font_size_override("font_size", 30)
-	plus.custom_minimum_size = Vector2(48, 40)
-	stepper.add_child(plus)
-	var unit := Label.new()
-	unit.text = "번 틀리면 쓰러져요"
-	unit.theme_type_variation = "MutedLabel"
-	unit.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	stepper.add_child(unit)
-	minus.pressed.connect(func() -> void: _change_misses(-1))
-	plus.pressed.connect(func() -> void: _change_misses(1))
-	_row("최대 실수", stepper, v)
+	# 최대 실수 횟수 · 키 조절 (− 값 +) 을 한 줄에
+	var steppers := HBoxContainer.new()
+	steppers.add_theme_constant_override("separation", 10)
+	var ms := _stepper(func() -> void: _change_misses(-1), func() -> void: _change_misses(1))
+	_misses_label = ms[1]
+	ms[0].tooltip_text = "이 횟수만큼 틀리면 동전이 쓰러져요"
+	steppers.add_child(ms[0])
+	var gap := Control.new()
+	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	steppers.add_child(gap)
+	var key_caption := Label.new()
+	key_caption.text = "키"
+	key_caption.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	steppers.add_child(key_caption)
+	var ks := _stepper(func() -> void: _change_key(-1), func() -> void: _change_key(1))
+	_key_label = ks[1]
+	ks[0].tooltip_text = "반음 단위로 노래 전체를 올리거나 내려요 (정답 음·가이드·반주 모두)"
+	steppers.add_child(ks[0])
+	_row("최대 실수", steppers, v)
 	_change_misses(0)
 
 	# 난이도 (세그먼트 버튼)
@@ -546,18 +539,69 @@ func _on_song_selected(i: int) -> void:
 	var s := _songs[i]
 	_info.text = "%s  ·  %s" % [s.source, s.summary()]
 	_selected_label.text = s.title
+	_update_key_label(s)
 	_info.add_theme_color_override("font_color", UiTheme.MUTED if s.is_playable() else UiTheme.BAD)
 	_start.disabled = not s.is_playable()
+
+
+func _stepper(on_minus: Callable, on_plus: Callable) -> Array:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
+	var minus := Button.new()
+	minus.text = "-"
+	minus.add_theme_font_size_override("font_size", 30)
+	minus.custom_minimum_size = Vector2(44, 40)
+	minus.pressed.connect(on_minus)
+	box.add_child(minus)
+	var value := Label.new()
+	value.theme_type_variation = "BigLabel"
+	value.add_theme_font_size_override("font_size", 32)
+	value.custom_minimum_size = Vector2(62, 0)
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(value)
+	var plus := Button.new()
+	plus.text = "+"
+	plus.add_theme_font_size_override("font_size", 30)
+	plus.custom_minimum_size = Vector2(44, 40)
+	plus.pressed.connect(on_plus)
+	box.add_child(plus)
+	return [box, value]
+
+
+func _pop(label: Label) -> void:
+	label.pivot_offset = label.size * 0.5
+	label.scale = Vector2(1.25, 1.25)
+	label.create_tween().tween_property(label, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
+
+
+func _selected_song() -> SongData:
+	var sel := _list.get_selected_items()
+	return _songs[sel[0]] if not sel.is_empty() else null
+
+
+func _change_key(d: int) -> void:
+	var s := _selected_song()
+	if s == null:
+		return
+	GameSettings.set_key(s.id, GameSettings.get_key(s.id) + d)
+	_update_key_label(s)
+	if d != 0:
+		_pop(_key_label)
+
+
+func _update_key_label(s: SongData) -> void:
+	var k := GameSettings.get_key(s.id)
+	_key_label.text = "%+d" % k if k != 0 else "0"
+	_key_label.add_theme_color_override("font_color", UiTheme.TEXT if k == 0 else UiTheme.GOLD)
+	var r := s.midi_range()
+	_key_label.tooltip_text = "음역 %s~%s" % [NoteUtils.midi_name(r.x + k), NoteUtils.midi_name(r.y + k)]
 
 
 func _change_misses(d: int) -> void:
 	GameSettings.max_misses = clampi(GameSettings.max_misses + d, 1, GameSettings.MAX_MISSES_LIMIT)
 	_misses_label.text = str(GameSettings.max_misses)
 	if d != 0:
-		var tw := _misses_label.create_tween()
-		_misses_label.pivot_offset = _misses_label.size * 0.5
-		_misses_label.scale = Vector2(1.25, 1.25)
-		tw.tween_property(_misses_label, "scale", Vector2.ONE, 0.2).set_trans(Tween.TRANS_BACK)
+		_pop(_misses_label)
 	_world.coin.instability = clampf(0.6 / GameSettings.max_misses, 0.05, 0.5)
 
 
