@@ -34,6 +34,7 @@ var _passed := 0
 var _judged := 0
 var _silent_time := 0.0
 var _sim_time := 0.0
+var _last_t := 0.0
 var _autoplay := ""   ## 테스트용: "good" / "bad" (명령줄 -- autoplay=good)
 
 
@@ -67,6 +68,15 @@ func _ready() -> void:
 		p.bus = "SFX"
 		add_child(p)
 		_sfx[key] = p
+
+	# 메뉴에서 넘어올 때 어두운 화면에서 서서히 밝아짐
+	var fade := ColorRect.new()
+	fade.color = Color(0.06, 0.07, 0.16, 1.0)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_hud.add_child(fade)
+	create_tween().tween_property(fade, "color:a", 0.0, 0.6)
+	create_tween().tween_callback(fade.queue_free).set_delay(0.7)
 
 	_start()
 
@@ -120,6 +130,7 @@ func _process(delta: float) -> void:
 	if state == State.FALLEN or state == State.CLEARED:
 		return
 	var t := song_time()
+	_last_t = t
 	var te := t - MIC_LATENCY
 
 	# 카운트다운 표시
@@ -248,7 +259,6 @@ func _clear() -> void:
 	state = State.CLEARED
 	_hud.set_countdown("")
 	_world.celebrate()
-	_world.stop_rolling(2.5)
 	_sfx["coin"].play()
 	_hud.toast("완주!", UiTheme.GOLD, true)
 	if _backing.playing:
@@ -258,7 +268,7 @@ func _clear() -> void:
 
 
 func _show_result(cleared: bool) -> void:
-	var t := song_time()
+	var t := _last_t
 	_synth.stop()
 	_hud.show_result(cleared, {
 		"song": song.title,

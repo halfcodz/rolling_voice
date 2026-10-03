@@ -156,6 +156,21 @@ func _test_midi_parser() -> void:
 			"템포 변경 후 60bpm (%.3f~%.3f)" % [notes[2].start, notes[2].end])
 	check(not MidiParser.parse("hello".to_ascii_buffer()).ok, "잘못된 파일 거부")
 
+	# 사용자 폴더에 넣은 MIDI가 목록에 나타나는지
+	SongLibrary.ensure_songs_dir()
+	var path := SongLibrary.SONGS_DIR.path_join("zz_테스트곡.mid")
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_buffer(bytes)
+	f.close()
+	var found: SongData = null
+	for song in SongLibrary.load_all():
+		if song.id == "user:zz_테스트곡.mid":
+			found = song
+	check(found != null and found.is_playable(), "사용자 폴더 MIDI 불러오기")
+	if found:
+		check(found.click_times.size() == 4 and is_equal_approx(found.notes[0].start, 2.4), "반주 없으면 카운트인 추가 (첫 음 %.2f초)" % found.notes[0].start)
+	DirAccess.remove_absolute(path)
+
 
 func _test_builtin_songs() -> void:
 	print("[내장곡]")
