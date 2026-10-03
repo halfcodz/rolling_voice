@@ -58,3 +58,6 @@ desktop.ini
 .vscode/
 .idea/
 .vs/
+
+# 로컬 미리보기용 임시 씬
+rolling-voice/tests/_*
