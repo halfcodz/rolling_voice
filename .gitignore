@@ -1,0 +1,60 @@
+# ── Godot 4 ───────────────────────────────────────────────
+# 에디터 캐시·임포트 결과 (각자 에디터에서 다시 생성됨)
+.godot/
+**/.godot/
+*.tmp
+
+# 내보내기(Export) 설정: 키스토어 경로·비밀번호 등 민감 정보가 들어갈 수 있음
+export_presets.cfg
+export_credentials.cfg
+**/export_presets.cfg
+
+# 빌드 결과물
+/build/
+/builds/
+/export/
+**/android/
+*.exe
+*.pck
+*.zip
+*.apk
+*.aab
+*.ipa
+*.dmg
+*.x86_64
+*.arm64
+
+# 서명 키 (절대 공개 저장소에 올리지 말 것)
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+
+# C#(Mono) 빌드 산출물
+.mono/
+data_*/
+mono_crash.*.json
+*.csproj.user
+
+# ── 개인 파일 ─────────────────────────────────────────────
+# 저작권이 있는 노래 파일(반주·MIDI)은 저장소에 올리지 않음
+my_songs/
+**/my_songs/
+*.mp3
+*.flac
+*.m4a
+
+# 환경 변수·비밀 값
+.env
+.env.*
+
+# ── OS / 에디터 ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+.vs/
