@@ -303,6 +303,11 @@ func show_finish_after(sec: float) -> void:
 	_finish_distance = maxf(sec, 0.0) * speed
 
 
+## 결승선까지 남은 거리를 직접 지정 (게임이 노래 시각에 맞춰 매 프레임 호출)
+func set_finish_distance(d: float) -> void:
+	_finish_distance = d
+
+
 func shake(amount: float) -> void:
 	_shake = maxf(_shake, amount)
 

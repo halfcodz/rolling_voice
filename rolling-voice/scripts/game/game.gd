@@ -26,13 +26,14 @@ var _backing: AudioStreamPlayer
 var _sfx: Dictionary = {}
 var _start_usec := 0
 var _cur := 0
-var _good := 0
-var _samples := 0
-var _total_good := 0
-var _total_samples := 0
+var _good := 0.0
+var _samples := 0.0
+var _total_good := 0.0
+var _total_samples := 0.0
 var _passed := 0
 var _judged := 0
 var _silent_time := 0.0
+var _sim_time := 0.0
 var _autoplay := ""   ## 테스트용: "good" / "bad" (명령줄 -- autoplay=good)
 
 
@@ -73,10 +74,10 @@ func _ready() -> void:
 func _start() -> void:
 	misses = 0
 	_cur = 0
-	_good = 0
-	_samples = 0
-	_total_good = 0
-	_total_samples = 0
+	_good = 0.0
+	_samples = 0.0
+	_total_good = 0.0
+	_total_samples = 0.0
 	_passed = 0
 	_judged = 0
 	_silent_time = 0.0
@@ -94,6 +95,7 @@ func _start() -> void:
 			_hud.set_hint("반주 파일을 열 수 없어서 가이드 멜로디만 재생해요")
 	_backing.volume_db = 0.0
 	_start_usec = Time.get_ticks_usec()
+	_sim_time = 0.0
 	_synth.start()
 	if _backing.stream:
 		_backing.play()
@@ -101,6 +103,8 @@ func _start() -> void:
 
 
 func song_time() -> float:
+	if not _autoplay.is_empty():
+		return _sim_time
 	if _backing.playing:
 		return _backing.get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()
 	return (Time.get_ticks_usec() - _start_usec) / 1000000.0 - AudioServer.get_output_latency()
@@ -112,6 +116,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	_sim_time += minf(delta, 1.0 / 30.0)
 	if state == State.FALLEN or state == State.CLEARED:
 		return
 	var t := song_time()
@@ -125,6 +130,15 @@ func _process(delta: float) -> void:
 	elif remain <= 0.0 and remain > -0.8:
 		_hud.set_countdown("시작!")
 		state = State.PLAYING
+
+	# 끝난 음표 판정 (먼저 넘겨야 지금 음표 기준으로 비교한다)
+	while _cur < song.notes.size() and te > song.notes[_cur].end:
+		_finish_note(_cur)
+		_cur += 1
+		_good = 0.0
+		_samples = 0.0
+		if state == State.FALLEN:
+			return
 
 	# 지금 부르는 음
 	var target_midi := -1
@@ -140,21 +154,14 @@ func _process(delta: float) -> void:
 	var in_tune := voiced and target_midi >= 0 and \
 		NoteUtils.cents_diff(sung, target_midi, GameSettings.ignore_octave) <= GameSettings.tolerance_cents()
 
-	# 판정 진행
-	while _cur < song.notes.size() and te > song.notes[_cur].end:
-		_finish_note(_cur)
-		_cur += 1
-		_good = 0
-		_samples = 0
-		if state == State.FALLEN:
-			return
-	if _cur < song.notes.size():
+	# 시간 가중 샘플 (프레임 속도와 무관)
+	if active:
 		var n2: Dictionary = song.notes[_cur]
 		var grace := minf(0.12, (n2.end - n2.start) * 0.25)
-		if te >= n2.start + grace and te <= n2.end:
-			_samples += 1
+		if te >= n2.start + grace:
+			_samples += delta
 			if in_tune:
-				_good += 1
+				_good += delta
 
 	# 실시간 흔들림: 음이 틀리면 1, 소리가 없으면 0.4
 	var live := 0.0
@@ -169,6 +176,8 @@ func _process(delta: float) -> void:
 	elif voiced:
 		_silent_time = 0.0
 	_hud.set_hint("마이크에 소리가 들어오지 않아요 — 메뉴에서 마이크·감도를 확인해 주세요" if _silent_time > 4.0 and _autoplay.is_empty() else "")
+
+	_world.set_finish_distance((song.duration() + 0.6 - t) * _world.speed)
 
 	# UI
 	_hud.lane.current_index = _cur if _cur < song.notes.size() else -1
@@ -196,12 +205,12 @@ func _read_voice(target_midi: int, t: float) -> Array:
 
 func _finish_note(i: int) -> void:
 	var n: Dictionary = song.notes[i]
-	if n.end - n.start < MIN_JUDGE_LEN or _samples == 0:
+	if n.end - n.start < MIN_JUDGE_LEN or _samples <= 0.0:
 		return
 	_judged += 1
 	_total_good += _good
 	_total_samples += _samples
-	var ratio := float(_good) / _samples
+	var ratio := _good / _samples
 	if ratio >= GameSettings.pass_ratio():
 		_passed += 1
 		_hud.lane.results[i] = 1
@@ -237,6 +246,7 @@ func _fall() -> void:
 
 func _clear() -> void:
 	state = State.CLEARED
+	_hud.set_countdown("")
 	_world.celebrate()
 	_world.stop_rolling(2.5)
 	_sfx["coin"].play()
@@ -254,7 +264,7 @@ func _show_result(cleared: bool) -> void:
 		"song": song.title,
 		"misses": misses,
 		"max_misses": GameSettings.max_misses,
-		"accuracy": float(_total_good) / maxi(_total_samples, 1),
+		"accuracy": _total_good / maxf(_total_samples, 0.001),
 		"passed": _passed,
 		"judged": _judged,
 		"progress": 1.0 if cleared else clampf(t / maxf(song.duration(), 0.01), 0.0, 1.0),

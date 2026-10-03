@@ -42,7 +42,7 @@ func _ready() -> void:
 	add_child(layer)
 	_ui = Control.new()
 	_ui.theme = GameSettings.theme
-	_ui.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(_ui)
 	_build()
 	_refresh_songs()
@@ -62,14 +62,15 @@ func _build() -> void:
 	gtex.fill_from = Vector2(0, 0)
 	gtex.fill_to = Vector2(1, 0)
 	shade.texture = gtex
-	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	shade.anchor_right = 0.62
+	shade.offset_right = 0
 	shade.stretch_mode = TextureRect.STRETCH_SCALE
 	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_ui.add_child(shade)
 
 	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 30)
 	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -154,13 +155,13 @@ func _build() -> void:
 
 func _build_drawer() -> void:
 	_drawer = Control.new()
-	_drawer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_drawer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_drawer.visible = false
 	_ui.add_child(_drawer)
 	var dim := ColorRect.new()
 	dim.name = "Dim"
 	dim.color = Color(0.02, 0.02, 0.08, 0.45)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.gui_input.connect(func(e: InputEvent) -> void:
 		if e is InputEventMouseButton and e.pressed:
 			_toggle_drawer(false))
@@ -454,18 +455,18 @@ func _build_rule_card() -> PanelContainer:
 
 func _build_help() -> void:
 	_help = Control.new()
-	_help.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_help.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_help.visible = false
 	_ui.add_child(_help)
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.02, 0.08, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.gui_input.connect(func(e: InputEvent) -> void:
 		if e is InputEventMouseButton and e.pressed:
 			_help.visible = false)
 	_help.add_child(dim)
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_help.add_child(center)
 	var card := PanelContainer.new()
@@ -575,7 +576,7 @@ func _on_start() -> void:
 	_click.play()
 	var fade := ColorRect.new()
 	fade.color = Color(0.06, 0.07, 0.16, 0.0)
-	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ui.add_child(fade)
 	var tw := create_tween()
 	tw.tween_property(fade, "color:a", 1.0, 0.35)

@@ -34,14 +34,14 @@ var _last_count := ""
 
 func _ready() -> void:
 	theme = GameSettings.theme
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_build()
 
 
 func _build() -> void:
 	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 22)
@@ -171,10 +171,8 @@ func _build() -> void:
 	_countdown.add_theme_font_size_override("font_size", 120)
 	_countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_countdown.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_countdown.set_anchors_preset(Control.PRESET_CENTER)
-	_countdown.custom_minimum_size = Vector2(600, 180)
-	_countdown.position = Vector2(-300, -40)
-	_countdown.pivot_offset = Vector2(300, 90)
+	_countdown.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_countdown.offset_top = 120
 	_countdown.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_countdown)
 
@@ -183,9 +181,13 @@ func _build() -> void:
 	_hint.add_theme_font_size_override("font_size", 20)
 	_hint.add_theme_stylebox_override("normal", UiTheme.box(Color(UiTheme.BAD, 0.92), 999, 10.0))
 	_hint.add_theme_color_override("font_color", Color.WHITE)
-	_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_hint.anchor_left = 0.5
+	_hint.anchor_right = 0.5
+	_hint.anchor_top = 1.0
+	_hint.anchor_bottom = 1.0
+	_hint.offset_top = -190
+	_hint.offset_bottom = -150
 	_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_hint.position.y = -150
 	_hint.visible = false
 	add_child(_hint)
 
@@ -297,6 +299,7 @@ func set_countdown(text: String) -> void:
 	_countdown.text = text
 	if text.is_empty():
 		return
+	_countdown.pivot_offset = _countdown.size * 0.5
 	_countdown.scale = Vector2(1.6, 1.6)
 	_countdown.modulate = Color(1, 1, 1, 0)
 	var tw := _countdown.create_tween().set_parallel()
@@ -321,14 +324,14 @@ func toast(text: String, color: Color, big := false) -> void:
 	l.add_theme_font_size_override("font_size", 56 if big else 34)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(l)
-	await get_tree().process_frame
-	var vp := get_viewport_rect().size
-	l.position = Vector2(vp.x * 0.5 - l.size.x * 0.5 + randf_range(-40, 40), vp.y * 0.52)
+	l.size = l.get_combined_minimum_size()
+	var vp := size
+	l.position = Vector2(vp.x * 0.5 - l.size.x * 0.5 + randf_range(-60, 60), vp.y * 0.56)
 	l.pivot_offset = l.size * 0.5
 	l.scale = Vector2(0.6, 0.6)
 	var tw := l.create_tween().set_parallel()
 	tw.tween_property(l, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(l, "position:y", l.position.y - 90.0, 1.0).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "position:y", l.position.y - 70.0, 1.0).set_ease(Tween.EASE_OUT)
 	tw.tween_property(l, "modulate:a", 0.0, 0.4).set_delay(0.6)
 	tw.chain().tween_callback(l.queue_free)
 
@@ -338,17 +341,17 @@ func show_result(cleared: bool, stats: Dictionary) -> void:
 	set_countdown("")
 	set_hint("")
 	_overlay = Control.new()
-	_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_overlay)
 
 	var dim := ColorRect.new()
 	dim.color = Color(0.03, 0.03, 0.1, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.modulate.a = 0.0
 	_overlay.add_child(dim)
 
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.add_child(center)
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(560, 0)
