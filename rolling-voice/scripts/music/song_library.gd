@@ -73,12 +73,18 @@ const GUIDE_TEXT := """Rolling Voice — 내 노래 추가하는 법
        title=제목      bpm=빠르기      transpose=조옮김(반음)
        audio=반주파일   offset=반주에서 첫 음까지의 초
 
-3) 음원만 있을 때 (.mp3 .ogg .wav)
+3) 종이 악보·악보 이미지가 있을 때 (MusicXML: .musicxml .xml .mxl)
+   - 무료 악보 인식 프로그램 Audiveris(https://audiveris.github.io)에 악보 이미지/PDF를 넣고
+     MusicXML로 내보내세요. 인식이 틀린 음은 무료 프로그램 MuseScore로 열어 고치면 됩니다.
+   - 그 파일을 이 폴더에 넣으면 멜로디가 정답 음이 되고, 악보 속 가사는 노래방 가사로 나와요.
+   - 도돌이표는 펼쳐지지 않아요. 반복이 있으면 MuseScore에서 '반복 펼치기' 후 내보내세요.
+
+4) 음원만 있을 때 (.mp3 .ogg .wav)
    - 메뉴의 '노래 추가 · 가사' → '음원으로 악보 만들기'를 누르면
      음원에서 멜로디를 자동으로 뽑아 텍스트 악보 초안을 만들어 줍니다.
    - 보컬이나 멜로디가 또렷한 음원일수록 정확하고, 틀린 음은 메모장으로 고치면 됩니다.
 
-4) 가사 (노래방처럼 표시)
+5) 가사 (노래방처럼 표시)
    - 텍스트 악보: '음이름/박자/가사'. 악보 한 줄이 가사 한 줄, '_'는 띄어쓰기.
    - .lrc 파일: 노래 파일과 같은 이름으로 두면 그 가사를 씁니다. 예) 내노래.mid + 내노래.lrc
        [00:12.30]첫 번째 소절
@@ -143,6 +149,8 @@ static func load_all() -> Array[SongData]:
 					list.append(load_text_file(path))
 				"mid", "midi":
 					list.append(load_midi_file(path))
+				"musicxml", "xml", "mxl":
+					list.append(load_musicxml_file(path))
 	return list
 
 
@@ -178,6 +186,35 @@ static func load_midi_file(path: String) -> SongData:
 	for n: Dictionary in res.notes:
 		s.add_note(n.start + shift, n.end - n.start, n.midi)
 	s.time_shift = shift
+	attach_lrc(s)
+	return s
+
+
+## MusicXML 악보(.musicxml/.xml/.mxl) → 곡. 악보 속 가사는 노래방 가사로 쓴다.
+static func load_musicxml_file(path: String) -> SongData:
+	var s := SongData.new()
+	s.id = "user:" + path.get_file()
+	s.title = path.get_file().get_basename()
+	s.source = "내 노래 · 악보(XML)"
+	s.audio_path = find_audio(path.get_basename())
+	s.lrc_path = path.get_basename() + ".lrc"
+	var res := MusicXmlParser.parse_file(path)
+	if not res.ok:
+		s.error = res.error
+		return s
+	if not String(res.title).is_empty():
+		s.title = res.title
+	var shift := 0.0
+	if s.audio_path.is_empty():
+		# 반주가 없으면 카운트인 4박을 넣는다 (악보 첫 템포 기준)
+		var beat := 60.0 / maxf(float(res.first_bpm), 20.0)
+		shift = beat * DEFAULT_COUNT_IN
+		for i in DEFAULT_COUNT_IN:
+			s.click_times.append(i * beat)
+	for n: Dictionary in res.notes:
+		s.add_note(n.start + shift, n.end - n.start, n.midi, n.lyric, n.line)
+	s.time_shift = shift
+	s.build_lyrics_from_notes()
 	attach_lrc(s)
 	return s
 

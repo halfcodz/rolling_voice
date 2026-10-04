@@ -42,6 +42,16 @@ bpm=90
 
 음표는 `음이름[/박자[/가사]]` 형식입니다. 악보 한 줄이 노래방 가사 한 줄이 되고, 가사 안의 `_`는 띄어쓰기입니다. 음이름은 `C4`, `F#3`, `Bb4`처럼 쓰거나 `도4`, `솔#4`처럼 계이름으로 써도 됩니다. `R`은 쉼표입니다. 머리말로 `bpm`(중간에 다시 쓰면 빠르기 변경), `transpose`(반음 단위 조옮김), `audio`(반주 파일), `offset`(반주에서 첫 음까지의 초)을 지정할 수 있습니다.
 
+### 악보 이미지·종이 악보가 있을 때 — MusicXML
+
+`.musicxml` / `.xml` / 압축 `.mxl` 파일을 노래 폴더에 넣으면, 멜로디는 정답 음이 되고 악보 속 가사는 노래방 가사가 됩니다.
+
+1. 무료 악보 인식 프로그램 [Audiveris](https://audiveris.github.io)에 악보 이미지나 PDF를 넣고 MusicXML로 내보냅니다.
+2. 인식이 틀린 음은 무료 프로그램 [MuseScore](https://musescore.org)로 열어 고친 뒤 다시 MusicXML로 저장합니다.
+3. 노래 폴더에 넣고 목록을 새로고침합니다. 같은 이름의 음원이 있으면 반주로 재생됩니다.
+
+읽는 정보는 음높이(조표·임시표), 박자, 템포(`<sound tempo>`/메트로놈 표기), 붙임줄, 화음(가장 높은 음), 첫 성부, 가사 음절, 시스템 줄바꿈입니다. 꾸밈음은 건너뜁니다. 도돌이표는 펼치지 않으니, 반복이 있으면 MuseScore에서 반복을 펼친 뒤 내보내세요.
+
 ### 음원만 있을 때 — 멜로디 자동 추출
 
 메뉴의 **노래 추가 · 가사 → 음원으로 악보 만들기**에서 mp3/ogg/wav를 고르면 멜로디를 뽑아 텍스트 악보 초안을 만듭니다. 음원은 노래 폴더로 복사되고, 같은 곡의 반주로 함께 재생됩니다.
@@ -66,7 +76,8 @@ rolling-voice/
 ├─ scripts/
 │  ├─ audio/          pitch_detector.gd (마이크 → YIN 음정 추정), melody_synth.gd (가이드 멜로디 합성),
 │  │                  melody_extractor.gd (음원 → 멜로디 악보)
-│  ├─ music/          note_utils.gd, song_data.gd, song_library.gd (텍스트 악보), midi_parser.gd
+│  ├─ music/          note_utils.gd, song_data.gd, song_library.gd (텍스트 악보), midi_parser.gd,
+│  │                  musicxml_parser.gd (MusicXML/.mxl)
 │  ├─ game/           game.gd (판정), rolling_coin.gd, rolling_world.gd, pitch_lane.gd, game_hud.gd,
 │  │                  karaoke_lyrics.gd (노래방 가사)
 │  ├─ ui/             main_menu.gd, lyric_sync.gd (가사 싱크 도구), ui_theme.gd (코드로 만든 Theme)

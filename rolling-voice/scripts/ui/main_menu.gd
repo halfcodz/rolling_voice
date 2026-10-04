@@ -490,7 +490,7 @@ func _build_help() -> void:
 	t.add_theme_font_size_override("font_size", 34)
 	v.add_child(t)
 	var steps := [
-		["MIDI 파일 (.mid)", "멜로디가 들어 있는 MIDI를 넣으면 노래 트랙을 자동으로 찾아요.\n같은 이름의 mp3·ogg·wav가 있으면 반주로 함께 재생해요. (예: 내노래.mid + 내노래.mp3)"],
+		["MIDI · 악보 파일 (.mid / .musicxml / .mxl)", "MIDI는 노래 트랙을, MusicXML은 멜로디와 악보 속 가사를 자동으로 읽어요. 같은 이름의 mp3·ogg·wav는 반주로 재생돼요.\n종이 악보나 악보 이미지는 무료 프로그램 Audiveris로 MusicXML로 바꿔 넣으면 돼요. (틀린 음은 MuseScore로 수정)"],
 		["텍스트 악보 (.txt)", "메모장으로 '음이름/박자/가사'를 적으면 돼요.  예) C4  D4/2  솔4/0.5/라  R(쉼표)\n머리말: title=제목  bpm=빠르기  transpose=조옮김  audio=반주파일  offset=첫 음까지 초"],
 		["음원만 있다면", "'노래 추가 · 가사' → '음원으로 악보 만들기'로 mp3·ogg·wav에서 멜로디 초안을 자동으로 뽑을 수 있어요."],
 		["가사", "악보에 '음이름/박자/가사'로 쓰거나(한 줄 = 가사 한 줄, '_' = 띄어쓰기), 같은 이름의 .lrc 파일을 두세요.\n'선택한 노래에 가사 붙이기'로 노래를 들으며 스페이스로 타이밍을 찍어 .lrc를 만들 수도 있어요."],

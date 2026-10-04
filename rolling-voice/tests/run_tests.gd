@@ -13,6 +13,7 @@ func _init() -> void:
 	_test_builtin_songs()
 	_test_lyrics_and_key()
 	_test_segmenter()
+	_test_musicxml()
 	print("\n결과: ", "모두 통과" if _fails == 0 else "%d개 실패" % _fails)
 	quit(1 if _fails > 0 else 0)
 
@@ -237,3 +238,96 @@ func _test_segmenter() -> void:
 	var song := SongLibrary.parse_text(chart, "x", "", "")
 	check(song.notes.size() == 3 and absf(song.notes[2].start - notes[2].start) < 0.02, "악보로 저장 후 다시 읽어도 시각 유지")
 	check(chart.split("\n").size() >= 9, "1초 넘게 쉬면 줄 바꿈")
+
+
+# 테스트용 임의 악보: divisions=2(8분음표=1), 처음 120bpm → 3마디부터 60bpm
+const TEST_XML := """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="4.0">
+  <work><work-title>테스트 악보</work-title></work>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+    <score-part id="P2"><part-name>Voice</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1"><attributes><divisions>1</divisions></attributes>
+      <note><pitch><step>C</step><octave>3</octave></pitch><duration>4</duration></note>
+    </measure>
+  </part>
+  <part id="P2">
+    <measure number="1">
+      <attributes><divisions>2</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time></attributes>
+      <direction><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>120</per-minute></metronome></direction-type><sound tempo="120"/></direction>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><lyric number="1"><syllabic>begin</syllabic><text>가</text></lyric></note>
+      <note><grace/><pitch><step>E</step><octave>4</octave></pitch><voice>1</voice></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><lyric number="1"><syllabic>end</syllabic><text>나</text></lyric></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><tie type="start"/><lyric number="1"><syllabic>single</syllabic><text>다</text></lyric></note>
+      <backup><duration>8</duration></backup>
+      <note><pitch><step>G</step><octave>3</octave></pitch><duration>8</duration><voice>2</voice></note>
+    </measure>
+    <measure number="2">
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><tie type="stop"/></note>
+      <note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch><duration>2</duration><voice>1</voice><lyric><text>라</text></lyric></note>
+      <note><chord/><pitch><step>A</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+      <note><rest/><duration>4</duration><voice>1</voice></note>
+    </measure>
+    <measure number="3">
+      <print new-system="yes"/>
+      <direction><sound tempo="60"/></direction>
+      <note><pitch><step>B</step><alter>-1</alter><octave>4</octave></pitch><duration>4</duration><voice>1</voice><lyric><syllabic>single</syllabic><text>마</text></lyric></note>
+      <note><rest/><duration>4</duration><voice>1</voice></note>
+    </measure>
+  </part>
+</score-partwise>
+"""
+
+
+func _test_musicxml() -> void:
+	print("[MusicXML]")
+	var res := MusicXmlParser.parse_bytes(TEST_XML.to_utf8_buffer())
+	check(res.ok, "파싱 성공 (%s)" % res.error)
+	if not res.ok:
+		return
+	var n: Array = res.notes
+	var desc := ", ".join(n.map(func(x): return "%s %.2f-%.2f %s" % [NoteUtils.midi_name(x.midi), x.start, x.end, x.lyric]))
+	check(res.title == "테스트 악보" and res.part == "Voice", "제목·가사 있는 파트 선택")
+	check(n.size() == 5, "음표 5개 (꾸밈음·2성부·화음 아래음 제외, 붙임줄 합침): " + desc)
+	if n.size() == 5:
+		check(n[0].midi == 60 and is_equal_approx(n[0].end, 0.5), "C4 8분음표×2 = 4분 = 0.5초(120bpm)")
+		check(n[2].midi == 64 and is_equal_approx(n[2].start, 1.0) and is_equal_approx(n[2].end, 2.5), "붙임줄: 2분+4분 = 1.5초")
+		check(n[3].midi == 69, "화음은 위 음(A4) 사용")
+		check(n[4].midi == 70 and is_equal_approx(n[4].start, 4.0) and is_equal_approx(n[4].end, 6.0), "♭·템포 60 변경 반영 (%.2f-%.2f)" % [n[4].start, n[4].end])
+		check(n[0].lyric == "가" and n[1].lyric == "나_" and n[3].lyric == "라_", "가사 음절 이어 붙이기")
+		check(n[3].line == 0 and n[4].line == 1, "새 시스템에서 가사 줄바꿈")
+
+	# 노래 폴더에 .musicxml과 압축 .mxl로 넣었을 때
+	SongLibrary.ensure_songs_dir()
+	var xml_path := SongLibrary.SONGS_DIR.path_join("zz_테스트.musicxml")
+	var f := FileAccess.open(xml_path, FileAccess.WRITE)
+	f.store_string(TEST_XML)
+	f.close()
+	var mxl_path := SongLibrary.SONGS_DIR.path_join("zz_테스트2.mxl")
+	var zp := ZIPPacker.new()
+	zp.open(mxl_path)
+	zp.start_file("META-INF/container.xml")
+	zp.write_file('<?xml version="1.0"?><container><rootfiles><rootfile full-path="score/main.xml"/></rootfiles></container>'.to_utf8_buffer())
+	zp.close_file()
+	zp.start_file("score/main.xml")
+	zp.write_file(TEST_XML.to_utf8_buffer())
+	zp.close_file()
+	zp.close()
+	var found := {}
+	for song in SongLibrary.load_all():
+		if song.id in ["user:zz_테스트.musicxml", "user:zz_테스트2.mxl"]:
+			found[song.id] = song
+	for id in ["user:zz_테스트.musicxml", "user:zz_테스트2.mxl"]:
+		var song: SongData = found.get(id)
+		check(song != null and song.is_playable() and song.lyric_lines.size() == 2,
+			"%s → 곡 목록·가사 2줄 %s" % [id, song.summary() if song else "없음"])
+	if found.has("user:zz_테스트.musicxml"):
+		var sg: SongData = found["user:zz_테스트.musicxml"]
+		check(sg.click_times.size() == 4 and is_equal_approx(sg.notes[0].start, 2.0), "반주 없으면 카운트인 (첫 음 %.2f초)" % sg.notes[0].start)
+		check(sg.lyric_lines[0].segs.map(func(g): return g.text).reduce(func(a, b): return a + b, "") == "가나 다 라 ", "가사 줄 텍스트")
+	DirAccess.remove_absolute(xml_path)
+	DirAccess.remove_absolute(mxl_path)
+	check(not MusicXmlParser.parse_bytes("<html></html>".to_utf8_buffer()).ok, "MusicXML이 아닌 파일 거부")
