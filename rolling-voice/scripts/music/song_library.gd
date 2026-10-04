@@ -56,6 +56,8 @@ const GUIDE_TEXT := """Rolling Voice — 내 노래 추가하는 법
 =====================================
 
 이 폴더에 파일을 넣고 게임의 노래 목록에서 '새로고침'을 누르면 됩니다.
+더 쉬운 방법: 파일을 게임 창에 끌어다 놓으면 이 폴더로 자동으로 복사돼요.
+(악보 사진·PDF는 Audiveris로 자동 인식, 음원은 멜로디 자동 추출, .lrc는 고른 노래의 가사로 붙음)
 
 1) MIDI 파일 (.mid)
    - 멜로디가 들어 있는 MIDI 파일을 넣으세요. 여러 악기가 섞여 있으면
@@ -74,8 +76,9 @@ const GUIDE_TEXT := """Rolling Voice — 내 노래 추가하는 법
        audio=반주파일   offset=반주에서 첫 음까지의 초
 
 3) 종이 악보·악보 이미지가 있을 때 (MusicXML: .musicxml .xml .mxl)
-   - 무료 악보 인식 프로그램 Audiveris(https://audiveris.github.io)에 악보 이미지/PDF를 넣고
-     MusicXML로 내보내세요. 인식이 틀린 음은 무료 프로그램 MuseScore로 열어 고치면 됩니다.
+   - 가장 쉬운 방법: 악보 사진(png/jpg)이나 PDF를 게임 창에 끌어다 놓기.
+     무료 악보 인식 프로그램 Audiveris(https://audiveris.github.io)가 설치돼 있으면 자동으로 읽어 줘요.
+   - 직접 하려면 Audiveris에 악보 이미지/PDF를 넣고 MusicXML로 내보내세요. 인식이 틀린 음은 무료 프로그램 MuseScore로 열어 고치면 됩니다.
    - 그 파일을 이 폴더에 넣으면 멜로디가 정답 음이 되고, 악보 속 가사는 노래방 가사로 나와요.
    - 도돌이표는 펼쳐지지 않아요. 반복이 있으면 MuseScore에서 '반복 펼치기' 후 내보내세요.
 

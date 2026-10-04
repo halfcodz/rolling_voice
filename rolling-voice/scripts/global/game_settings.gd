@@ -23,6 +23,7 @@ var mic_threshold := 0.02
 var input_device := "Default"
 var last_song_id := ""
 var song_keys := {}   ## 곡 id → 키(반음, -12~12)
+var audiveris_path := ""   ## 악보 인식 프로그램 위치 (비우면 자동 탐색)
 
 ## 메뉴 → 게임으로 넘길 곡
 var selected_song: SongData
@@ -130,6 +131,7 @@ func save_settings() -> void:
 	cfg.set_value("audio", "sfx_volume", sfx_volume)
 	cfg.set_value("audio", "mic_threshold", mic_threshold)
 	cfg.set_value("audio", "input_device", input_device)
+	cfg.set_value("tools", "audiveris_path", audiveris_path)
 	cfg.save(SAVE_PATH)
 
 
@@ -147,6 +149,7 @@ func load_settings() -> void:
 	sfx_volume = cfg.get_value("audio", "sfx_volume", sfx_volume)
 	mic_threshold = cfg.get_value("audio", "mic_threshold", mic_threshold)
 	input_device = cfg.get_value("audio", "input_device", input_device)
+	audiveris_path = cfg.get_value("tools", "audiveris_path", audiveris_path)
 
 
 func _notification(what: int) -> void:

@@ -17,6 +17,15 @@ var _ex_bar: ProgressBar
 var _ex_phase: Label
 var _ex_cancel: Button
 var _ex_open: Button
+var _ex_extra: Button
+var _ex_tip: Label
+var _omr: OmrRunner
+var _omr_tween: Tween
+var _omr_started := -1
+var _omr_path := ""
+var _queue: Array[String] = []
+var _busy := false
+var _toast_stack := 0
 var _diff_desc: Label
 var _diff_buttons: Array[Button] = []
 var _octave: CheckButton
@@ -56,6 +65,7 @@ func _ready() -> void:
 	_build()
 	_refresh_songs()
 	_animate_in()
+	get_window().files_dropped.connect(_on_files_dropped)
 
 
 # ── 화면 구성 ─────────────────────────────────────────────
@@ -370,6 +380,7 @@ func _build_song_card() -> PanelContainer:
 	tools.add_theme_font_size_override("font_size", 18)
 	var pop := tools.get_popup()
 	pop.add_theme_font_size_override("font_size", 20)
+	pop.add_icon_item(UiTheme.icon("folder_open"), "파일로 추가하기… (악보 사진·PDF·MIDI·음원)", MENU_ADD)
 	pop.add_icon_item(UiTheme.icon("graphic_eq"), "음원으로 악보 만들기…", MENU_EXTRACT)
 	pop.add_icon_item(UiTheme.icon("music_note"), "선택한 노래에 가사 붙이기…", MENU_LYRICS)
 	pop.add_separator()
@@ -397,6 +408,13 @@ func _build_song_card() -> PanelContainer:
 	_info.text = " "
 	_info.clip_text = true
 	v.add_child(_info)
+	var drop_hint := Label.new()
+	drop_hint.theme_type_variation = "MutedLabel"
+	drop_hint.add_theme_font_size_override("font_size", 15)
+	drop_hint.add_theme_color_override("font_color", Color(UiTheme.GOLD, 0.75))
+	drop_hint.text = "악보 사진·PDF·MIDI·MusicXML·음원·가사 파일을 창에 끌어다 놓아도 추가돼요"
+	drop_hint.clip_text = true
+	v.add_child(drop_hint)
 	return c[0]
 
 
@@ -490,11 +508,21 @@ func _build_help() -> void:
 	t.add_theme_font_size_override("font_size", 34)
 	v.add_child(t)
 	var steps := [
-		["MIDI · 악보 파일 (.mid / .musicxml / .mxl)", "MIDI는 노래 트랙을, MusicXML은 멜로디와 악보 속 가사를 자동으로 읽어요. 같은 이름의 mp3·ogg·wav는 반주로 재생돼요.\n종이 악보나 악보 이미지는 무료 프로그램 Audiveris로 MusicXML로 바꿔 넣으면 돼요. (틀린 음은 MuseScore로 수정)"],
-		["텍스트 악보 (.txt)", "메모장으로 '음이름/박자/가사'를 적으면 돼요.  예) C4  D4/2  솔4/0.5/라  R(쉼표)\n머리말: title=제목  bpm=빠르기  transpose=조옮김  audio=반주파일  offset=첫 음까지 초"],
+		["끌어다 놓기", "악보 사진·PDF, MIDI, MusicXML, 텍스트 악보, 음원, 가사(.lrc) 파일을 게임 창에 끌어다 놓으면 알아서 추가돼요.\n악보 사진은 무료 악보 인식 프로그램 Audiveris로 읽어요. (처음 한 번 설치 필요, 'kor' 언어를 켜면 한글 가사도 읽어요)"],
+		["MIDI · 악보 파일 (.mid / .musicxml / .mxl)", "MIDI는 노래 트랙을, MusicXML은 멜로디와 악보 속 가사를 자동으로 읽어요. 같은 이름의 mp3·ogg·wav는 반주로 재생돼요."],
+		["텍스트 악보 (.txt)", "메모장으로 '음이름/박자/가사'를 적으면 돼요.  예) C4  D4/2  솔4/0.5/라  R(쉼표)   머리말: title=  bpm=  audio=  offset="],
 		["음원만 있다면", "'노래 추가 · 가사' → '음원으로 악보 만들기'로 mp3·ogg·wav에서 멜로디 초안을 자동으로 뽑을 수 있어요."],
 		["가사", "악보에 '음이름/박자/가사'로 쓰거나(한 줄 = 가사 한 줄, '_' = 띄어쓰기), 같은 이름의 .lrc 파일을 두세요.\n'선택한 노래에 가사 붙이기'로 노래를 들으며 스페이스로 타이밍을 찍어 .lrc를 만들 수도 있어요."],
 	]
+	# 항목이 많아도 버튼이 화면 안에 있도록 스크롤 영역에 담는다
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 430)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	var list_box := VBoxContainer.new()
+	list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list_box.add_theme_constant_override("separation", 12)
+	scroll.add_child(list_box)
 	for s in steps:
 		var box := PanelContainer.new()
 		box.theme_type_variation = "SoftPanel"
@@ -509,7 +537,7 @@ func _build_help() -> void:
 		b.theme_type_variation = "MutedLabel"
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		bv.add_child(b)
-		v.add_child(box)
+		list_box.add_child(box)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 12)
 	v.add_child(buttons)
@@ -537,10 +565,13 @@ const MENU_EXTRACT := 0
 const MENU_LYRICS := 1
 const MENU_FOLDER := 2
 const MENU_HELP := 3
+const MENU_ADD := 4
 
 
 func _on_tools_menu(id: int) -> void:
 	match id:
+		MENU_ADD:
+			_open_file_adder()
 		MENU_EXTRACT:
 			_open_extractor()
 		MENU_LYRICS:
@@ -584,7 +615,8 @@ func _start_extract(path: String) -> void:
 		_ex_title.add_theme_color_override("font_color", UiTheme.BAD)
 		_ex_phase.text = msg
 		_ex_cancel.text = "닫기"
-		_extractor.queue_free())
+		_extractor.queue_free()
+		_task_done())
 	_extractor.finished.connect(_on_extract_done)
 	_ex_title.text = "멜로디 뽑는 중"
 	var fname := path.get_file()
@@ -609,7 +641,13 @@ func _on_extract_done(chart_path: String, count: int) -> void:
 			_on_song_selected(i)
 
 
-func _build_extract_overlay() -> void:
+const EXTRACT_TIP := "보컬이나 멜로디가 또렷한 음원일수록 정확해요. 반주만 있는 음원은 멜로디를 찾기 어려워요.\n" \
+	+ "만들어진 악보는 초안이라, 틀린 음은 메모장으로 고칠 수 있어요. (음원은 노래 폴더로 복사돼요)"
+const OMR_TIP := "밝고 반듯하게, 오선이 휘지 않게 찍은 사진일수록 잘 읽어요. 여러 쪽이면 PDF 한 파일로 넣어 주세요.\n" \
+	+ "틀린 음은 노래 폴더의 .mxl을 MuseScore(무료)로 열어 고친 뒤 같은 이름으로 저장하면 돼요."
+
+
+func _build_extract_overlay(tip_text: String = EXTRACT_TIP, icon_name: String = "graphic_eq") -> void:
 	if _ex_overlay:
 		_ex_overlay.queue_free()
 	_ex_overlay = Control.new()
@@ -632,7 +670,7 @@ func _build_extract_overlay() -> void:
 	head.add_theme_constant_override("separation", 12)
 	v.add_child(head)
 	var ic := TextureRect.new()
-	ic.texture = UiTheme.icon("graphic_eq")
+	ic.texture = UiTheme.icon(icon_name)
 	ic.custom_minimum_size = Vector2(36, 36)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -661,9 +699,9 @@ func _build_extract_overlay() -> void:
 	tl.theme_type_variation = "MutedLabel"
 	tl.add_theme_font_size_override("font_size", 17)
 	tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tl.text = "보컬이나 멜로디가 또렷한 음원일수록 정확해요. 반주만 있는 음원은 멜로디를 찾기 어려워요.\n" \
-		+ "만들어진 악보는 초안이라, 틀린 음은 메모장으로 고칠 수 있어요. (음원은 노래 폴더로 복사돼요)"
+	tl.text = tip_text
 	tip.add_child(tl)
+	_ex_tip = tl
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 12)
 	v.add_child(buttons)
@@ -675,9 +713,19 @@ func _build_extract_overlay() -> void:
 		if is_instance_valid(_extractor):
 			_extractor.cancel()
 			_extractor.queue_free()
+		if is_instance_valid(_omr):
+			_omr.cancel()
+			_omr.queue_free()
+		_queue.clear()
+		_busy = false
 		_ex_overlay.queue_free()
 		_ex_overlay = null)
 	buttons.add_child(_ex_cancel)
+	_ex_extra = Button.new()
+	_ex_extra.custom_minimum_size = Vector2(0, 56)
+	_ex_extra.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_ex_extra.visible = false
+	buttons.add_child(_ex_extra)
 	_ex_open = Button.new()
 	_ex_open.theme_type_variation = "PrimaryButton"
 	_ex_open.add_theme_font_size_override("font_size", 24)
@@ -688,7 +736,254 @@ func _build_extract_overlay() -> void:
 	_ex_open.visible = false
 	buttons.add_child(_ex_open)
 
+# ── 파일 끌어다 놓기 · 파일로 추가하기 ──────────────────────
+const CHART_EXTS: PackedStringArray = ["mid", "midi", "musicxml", "xml", "mxl", "txt"]
+const AUDIO_EXTS: PackedStringArray = ["mp3", "ogg", "wav"]
+
+
+func _on_files_dropped(files: PackedStringArray) -> void:
+	if _help.visible:
+		_help.visible = false
+	_handle_files(files)
+
+
+func _open_file_adder() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILES
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray([
+		"*.png, *.jpg, *.jpeg, *.bmp, *.tif, *.tiff, *.pdf, *.mid, *.midi, *.musicxml, *.xml, *.mxl, *.txt, *.mp3, *.ogg, *.wav, *.lrc ; 지원하는 모든 파일",
+		"*.png, *.jpg, *.jpeg, *.bmp, *.tif, *.tiff, *.pdf ; 악보 사진·PDF",
+		"*.mid, *.midi, *.musicxml, *.xml, *.mxl, *.txt ; 악보 파일",
+		"*.mp3, *.ogg, *.wav ; 음원",
+		"*.lrc ; 가사",
+	])
+	fd.title = "추가할 파일 고르기 (여러 개 선택 가능)"
+	fd.use_native_dialog = true
+	# 더블클릭·열기 버튼 모두 files_selected로 들어온다
+	fd.files_selected.connect(func(paths: PackedStringArray) -> void:
+		fd.queue_free()
+		_handle_files(paths))
+	fd.file_selected.connect(func(path: String) -> void:
+		fd.queue_free()
+		_handle_files(PackedStringArray([path])))
+	fd.canceled.connect(fd.queue_free)
+	_ui.add_child(fd)
+	fd.popup_centered_ratio(0.7)
+
+
+func _handle_files(paths: PackedStringArray) -> void:
+	for p in paths:
+		_queue.append(p)
+	if not _busy:
+		_next_file()
+
+
+func _next_file() -> void:
+	while not _queue.is_empty():
+		var path: String = _queue.pop_front()
+		var ext := path.get_extension().to_lower()
+		if OmrRunner.is_image(path):
+			_busy = true
+			_start_omr(path)
+			return
+		if AUDIO_EXTS.has(ext):
+			if _has_chart_named(path.get_file().get_basename()):
+				_copy_into_songs(path, "반주로 추가했어요")
+				continue
+			_busy = true
+			_start_extract(path)
+			return
+		if CHART_EXTS.has(ext):
+			var dst := _copy_into_songs(path, "노래를 추가했어요")
+			if not dst.is_empty():
+				_select_song_id("user:" + dst.get_file())
+			continue
+		if ext == "lrc":
+			_import_lrc(path)
+			continue
+		_toast("지원하지 않는 파일이에요: " + path.get_file(), UiTheme.BAD)
+	_busy = false
+
+
+func _task_done() -> void:
+	_busy = false
+	if not _queue.is_empty():
+		get_tree().create_timer(1.2).timeout.connect(_next_file)
+
+
+func _has_chart_named(base: String) -> bool:
+	for e in CHART_EXTS:
+		if FileAccess.file_exists(SongLibrary.SONGS_DIR.path_join(base + "." + e)):
+			return true
+	return false
+
+
+func _copy_into_songs(path: String, message: String) -> String:
+	SongLibrary.ensure_songs_dir()
+	var dst := SongLibrary.SONGS_DIR.path_join(path.get_file())
+	if ProjectSettings.globalize_path(dst).simplify_path() != path.simplify_path():
+		if DirAccess.copy_absolute(path, dst) != OK:
+			_toast("복사하지 못했어요: " + path.get_file(), UiTheme.BAD)
+			return ""
+	_refresh_songs()
+	_toast("%s: %s" % [message, path.get_file()], UiTheme.GOOD)
+	return dst
+
+
+func _import_lrc(path: String) -> void:
+	var base := path.get_file().get_basename()
+	if _has_chart_named(base):
+		_copy_into_songs(path, "가사를 추가했어요")
+		return
+	var s := _selected_song()
+	if s == null or s.lrc_path.is_empty():
+		_toast("가사를 붙일 노래를 먼저 골라 주세요", UiTheme.BAD)
+		return
+	SongLibrary.ensure_songs_dir()
+	if DirAccess.copy_absolute(path, s.lrc_path) == OK:
+		var id := s.id
+		_refresh_songs()
+		_select_song_id(id)
+		_toast("'%s'에 가사를 붙였어요" % s.title, UiTheme.GOOD)
+	else:
+		_toast("가사 파일을 복사하지 못했어요", UiTheme.BAD)
+
+
+func _select_song_id(id: String) -> void:
+	for i in _songs.size():
+		if _songs[i].id == id:
+			_list.select(i)
+			_list.ensure_current_is_visible()
+			_on_song_selected(i)
+			return
+
+
+# ── 악보 사진 → MusicXML (Audiveris) ───────────────────────
+func _start_omr(path: String) -> void:
+	_build_extract_overlay(OMR_TIP, "library_music")
+	_ex_title.text = "악보 사진 읽는 중"
+	var fname := path.get_file()
+	_ex_file.text = fname if fname.length() <= 40 else fname.left(37) + "..."
+	_ex_phase.text = "Audiveris로 악보를 인식하고 있어요 (보통 30초~2분)"
+	_omr_started = Time.get_ticks_msec()
+	_omr_path = path
+	# 진행률을 알 수 없어서 막대가 왔다 갔다 움직이게
+	_ex_bar.value = 0.0
+	var tw := _ex_bar.create_tween().set_loops()
+	tw.tween_property(_ex_bar, "value", 100.0, 1.1).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_ex_bar, "value", 0.0, 1.1).set_trans(Tween.TRANS_SINE)
+	_omr_tween = tw
+	_omr = OmrRunner.new()
+	add_child(_omr)
+	_omr.failed.connect(_on_omr_failed)
+	_omr.finished.connect(_on_omr_done)
+	_omr.run(path)
+
+
+func _stop_omr_anim() -> void:
+	if _omr_tween and _omr_tween.is_valid():
+		_omr_tween.kill()
+	_omr_started = -1
+
+
+func _on_omr_done(mxl_path: String) -> void:
+	_stop_omr_anim()
+	_omr.queue_free()
+	_refresh_songs()
+	var id := "user:" + mxl_path.get_file()
+	_select_song_id(id)
+	var song: SongData = null
+	for s in _songs:
+		if s.id == id:
+			song = s
+	_ex_bar.value = 100.0
+	_ex_cancel.text = "닫기"
+	if song and song.is_playable():
+		_ex_title.text = "악보를 읽었어요!"
+		_ex_title.add_theme_color_override("font_color", UiTheme.GOOD)
+		_ex_phase.text = "%s · 음표 %d개%s" % [mxl_path.get_file(), song.notes.size(),
+			" · 가사 %d줄" % song.lyric_lines.size() if song.has_lyrics() else " · 가사 없음"]
+	else:
+		_ex_title.text = "악보는 읽었지만 멜로디가 없어요"
+		_ex_title.add_theme_color_override("font_color", UiTheme.BAD)
+		_ex_phase.text = song.error if song else "노래 목록에서 찾지 못했어요"
+	_ex_open.text = "노래 폴더 열기"
+	_ex_open.visible = true
+	_ex_open.pressed.connect(func() -> void: OS.shell_open(ProjectSettings.globalize_path(SongLibrary.SONGS_DIR)))
+	_task_done()
+
+
+func _on_omr_failed(msg: String) -> void:
+	_stop_omr_anim()
+	_omr.queue_free()
+	_ex_bar.value = 0.0
+	_ex_cancel.text = "닫기"
+	_ex_title.add_theme_color_override("font_color", UiTheme.BAD)
+	if msg != "NO_AUDIVERIS":
+		_ex_title.text = "악보를 읽지 못했어요"
+		_ex_phase.text = msg
+		_task_done()
+		return
+	# 악보 인식 프로그램이 없을 때: 설치 안내 + 직접 위치 지정
+	_ex_title.text = "Audiveris가 필요해요"
+	_ex_phase.text = "악보 사진을 읽으려면 무료 악보 인식 프로그램 Audiveris를 한 번 설치해야 해요.\n" \
+		+ "설치한 뒤 사진을 다시 끌어다 놓으면 자동으로 찾아요. 다른 곳에 설치했다면 위치를 직접 지정해 주세요."
+	_ex_tip.text = "가사(한글)까지 읽으려면 Audiveris를 실행해 Tools → Languages에서 'kor'에 체크해 주세요."
+	_ex_open.text = "다운로드 페이지"
+	_ex_open.visible = true
+	_ex_open.pressed.connect(func() -> void: OS.shell_open(OmrRunner.DOWNLOAD_URL))
+	_ex_extra.text = "위치 지정…"
+	_ex_extra.visible = true
+	_ex_extra.pressed.connect(_pick_audiveris)
+
+
+func _pick_audiveris() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.exe, *.bat, *.sh, Audiveris ; Audiveris 실행 파일"]) if OS.get_name() == "Windows" else PackedStringArray([])
+	fd.title = "Audiveris 실행 파일 고르기"
+	fd.use_native_dialog = true
+	fd.file_selected.connect(func(path: String) -> void:
+		fd.queue_free()
+		GameSettings.audiveris_path = path
+		GameSettings.save_settings()
+		if not _omr_path.is_empty():
+			_start_omr(_omr_path))
+	fd.canceled.connect(fd.queue_free)
+	_ui.add_child(fd)
+	fd.popup_centered_ratio(0.7)
+
+
+func _toast(text: String, color: Color) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", UiTheme.INK if color == UiTheme.GOOD else Color.WHITE)
+	l.add_theme_stylebox_override("normal", UiTheme.box(color, 999, 12.0, 0, Color.TRANSPARENT, 10, Vector2(0, 4)))
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_ui.add_child(l)
+	l.size = l.get_combined_minimum_size()
+	var vp := _ui.size
+	l.position = Vector2((vp.x - l.size.x) * 0.5, vp.y - 110.0 - _toast_stack * 56.0)
+	_toast_stack += 1
+	l.modulate.a = 0.0
+	var tw := l.create_tween()
+	tw.tween_property(l, "modulate:a", 1.0, 0.2)
+	tw.tween_interval(2.4)
+	tw.tween_property(l, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(func() -> void:
+		_toast_stack = maxi(_toast_stack - 1, 0)
+		l.queue_free())
+
+
 func _refresh_songs() -> void:
+	# 새로고침해도 지금 고른 곡을 그대로 유지 (없으면 마지막으로 플레이한 곡)
+	var keep_id := GameSettings.last_song_id
+	var cur := _selected_song() if _list.item_count > 0 else null
+	if cur:
+		keep_id = cur.id
 	_songs = SongLibrary.load_all()
 	_list.clear()
 	var select := 0
@@ -699,7 +994,7 @@ func _refresh_songs() -> void:
 		_list.set_item_tooltip(idx, "%s\n%s" % [s.source, s.summary()])
 		if not s.is_playable():
 			_list.set_item_custom_fg_color(idx, Color(UiTheme.BAD, 0.85))
-		if s.id == GameSettings.last_song_id:
+		if s.id == keep_id:
 			select = i
 	if not _songs.is_empty():
 		_list.select(select)
@@ -825,6 +1120,8 @@ func _animate_in() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _omr_started >= 0 and is_instance_valid(_ex_phase):
+		_ex_phase.text = "Audiveris로 악보를 인식하고 있어요 · %d초 (보통 30초~2분)" % ((Time.get_ticks_msec() - _omr_started) / 1000)
 	# 제목이 동전처럼 살짝 흔들흔들
 	_title.rotation = sin(Time.get_ticks_msec() / 700.0) * 0.015
 	_title.pivot_offset = _title.size * Vector2(0.3, 0.5)
